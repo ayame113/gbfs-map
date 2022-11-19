@@ -192,6 +192,9 @@ async function updateData({
   const systemNamePromise = systemInformationPromise.then((systemInformation) =>
     systemInformation.short_name || systemInformation.name
   );
+  const defaultUrlPromise = systemInformationPromise.then((systemInformation) =>
+    systemInformation.url
+  );
   /** @type {StationStatus[]} */
   let currentStatus = [];
   /** @type {L.LayerGroup | undefined} */
@@ -208,9 +211,14 @@ async function updateData({
     currentStatus = status;
     const information = await informationPromise;
     const systemName = await systemNamePromise;
+    const defaultUrl = await defaultUrlPromise;
     for (const st of status) {
       information[st.station_id].marker.bindPopup(
-        createPopupText(information[st.station_id], st, update, systemName),
+        createPopupText(information[st.station_id], st, {
+          update,
+          systemName,
+          defaultUrl,
+        }),
       );
     }
     renderIcon();
@@ -297,6 +305,7 @@ async function getRegistryInformation(url, languages) {
 
 /**
  * @typedef {{
+ *   url?: string;
  *   name?: string;
  *   short_name?: string;
  *   brand_assets: {
@@ -450,18 +459,17 @@ function createIcon(iconUrl) {
 /**
  * @param  {StationInformation} information
  * @param  {StationStatus} status
- * @param  {string} update
- * @param  {string} [systemName]
+ * @param  {{update: string; systemName?: string; defaultUrl?: string}} options
  */
 function createPopupText(
   { name, rental_uris },
   { num_bikes_available, num_docks_available },
-  update,
-  systemName,
+  { update, systemName, defaultUrl },
 ) {
-  if (rental_uris?.web) {
+  const url = rental_uris?.web || defaultUrl;
+  if (url) {
     return `${systemName ? `<b>[${systemName}]</b><br>` : ""}
-      <b><a href=${rental_uris?.web} target="_brank">${name}</a></b><br>
+      <b><a href=${url} target="_brank">${name}</a></b><br>
       利用可能台数：${num_bikes_available}台<br>
       返却可能台数：${num_docks_available}台<br>
       （${update}更新）`;
