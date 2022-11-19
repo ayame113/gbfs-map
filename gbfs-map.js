@@ -15,34 +15,69 @@ const blueIcon = L.icon({
   tooltipAnchor: [16, -28],
   shadowSize: [41, 41],
 });
-const redIcon = L.icon({
-  iconUrl: "https://esm.sh/leaflet@1.9.2/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://esm.sh/leaflet@1.9.2/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://esm.sh/leaflet@1.9.2/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  tooltipAnchor: [16, -28],
-  shadowSize: [41, 41],
-  className: "icon-red",
-});
 
-const sheet = new CSSStyleSheet();
+const styleText = `
+.icon-red {
+  filter: hue-rotate(150deg);
+}
+.leaflet-marker-icon.icon-custum {
+  background-color: white;
+  border-radius: 5px;
+  border: 3px solid white;
+}
+:host {
+  height: 300px; /* default height */
+  display: block;
+  position: relative;
+}
+:host>div {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+:host>section {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 9999;
+  background-color: white;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  font-size: 80%;
+}
+:host>section label {
+  display: block;
+  padding: 4px 2px;
+  margin: 0;
+  cursor: pointer;
+  font-family: "Helvetica Neue", Arial, Helvetica, "Hiragino Sans", "Yu Gothic", sans-serif;
+  font-weight: bold;
+  user-select: none;
+}
+:host>section label:hover {
+  background-color: rgb(244, 244, 244);
+}
+:host>section label:first-child {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+}
+:host>section label:has(:checked) {
+  background-color: darkturquoise;
+  color: white;
+}
+:host>section input {
+  cursor: pointer;
+}
+`;
+
+// init stylesheet
+const defaultStyle = new CSSStyleSheet();
+defaultStyle.replace(styleText);
+const leafletStyle = new CSSStyleSheet();
 (async () => {
   const res = await fetch("https://esm.sh/leaflet@1.9.2/dist/leaflet.css");
-  sheet.replace(await res.text());
-  sheet.insertRule(`
-    .icon-red {
-      filter: hue-rotate(150deg);
-    }
-  `);
-  sheet.insertRule(`
-    .leaflet-marker-icon.icon-custum {
-      background-color: white;
-      border-radius: 5px;
-      border: 3px solid white;
-    }
-  `);
+  leafletStyle.replace(await res.text());
 })();
 
 export class GbfsMap extends HTMLElement {
@@ -52,19 +87,14 @@ export class GbfsMap extends HTMLElement {
   constructor() {
     super();
     this.#shadowRoot = this.attachShadow({ mode: "closed" });
-    this.#shadowRoot.adoptedStyleSheets = [sheet];
+    this.#shadowRoot.adoptedStyleSheets = [defaultStyle, leafletStyle];
   }
   connectedCallback() {
     this.#abortController = new AbortController();
-    const {
-      map,
-      searchElement,
-      availableBikeCheckboxElement,
-      availableDockCheckboxElement,
-    } = this.#initElement();
+    const { map, availableBikeCheckboxElement, availableDockCheckboxElement } =
+      this.#initElement();
     updateData({
       map,
-      searchElement,
       availableBikeCheckboxElement,
       availableDockCheckboxElement,
       url:
@@ -74,7 +104,6 @@ export class GbfsMap extends HTMLElement {
     });
     updateData({
       map,
-      searchElement,
       availableBikeCheckboxElement,
       availableDockCheckboxElement,
       url:
@@ -90,29 +119,27 @@ export class GbfsMap extends HTMLElement {
   #initElement() {
     const defaultLat = this.getAttribute("x-default-lat") || 0;
     const defaultLng = this.getAttribute("x-default-lng") || 0;
-    const searchElement = document.createElement("input");
+    const checkboxWrapper = document.createElement("section");
     const availableBikeCheckboxLabel = document.createElement("label");
     const availableDockCheckboxLabel = document.createElement("label");
     const availableBikeCheckboxElement = document.createElement("input");
     const availableDockCheckboxElement = document.createElement("input");
     const mapElement = document.createElement("div");
-    mapElement.style.height = "300px";
     availableBikeCheckboxElement.setAttribute("type", "checkbox");
     availableDockCheckboxElement.setAttribute("type", "checkbox");
     availableBikeCheckboxLabel.append(
       availableBikeCheckboxElement,
-      "貸出可能なポートのみ表示",
+      "貸出可能ポートのみ表示",
     );
     availableDockCheckboxLabel.append(
       availableDockCheckboxElement,
-      "返却可能なポートのみ表示",
+      "返却可能ポートのみ表示",
     );
-    this.#shadowRoot.append(
-      searchElement,
+    checkboxWrapper.append(
       availableBikeCheckboxLabel,
       availableDockCheckboxLabel,
-      mapElement,
     );
+    this.#shadowRoot.append(checkboxWrapper, mapElement);
 
     const map = L.map(mapElement).setView([+defaultLat, +defaultLng], 15);
 
@@ -123,7 +150,6 @@ export class GbfsMap extends HTMLElement {
     L.control.scale().addTo(map);
     return {
       map,
-      searchElement,
       availableBikeCheckboxElement,
       availableDockCheckboxElement,
     };
@@ -135,7 +161,6 @@ customElements.define("gbfs-map", GbfsMap);
  * @param {{
  *   map: L.Map;
  *   url: string;
- *   searchElement: HTMLInputElement;
  *   availableBikeCheckboxElement: HTMLInputElement;
  *   availableDockCheckboxElement: HTMLInputElement;
  *   signal: AbortSignal
@@ -144,7 +169,6 @@ customElements.define("gbfs-map", GbfsMap);
 async function updateData({
   map,
   url,
-  searchElement,
   availableBikeCheckboxElement,
   availableDockCheckboxElement,
   signal,
@@ -173,14 +197,6 @@ async function updateData({
   /** @type {L.LayerGroup | undefined} */
   let currentLayerGroup;
 
-  /** @type {number | undefined} */
-  let searchTimeout;
-  let searchText = "";
-  searchElement.addEventListener("input", () => {
-    searchText = searchElement.value ?? "";
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => renderIcon(), 300);
-  });
   availableBikeCheckboxElement.addEventListener("change", () => renderIcon());
   availableDockCheckboxElement.addEventListener("change", () => renderIcon());
 
@@ -217,17 +233,13 @@ async function updateData({
         const { station_id, num_bikes_available, num_docks_available }
           of currentStatus
       ) {
-        const { lat, lon, marker, name } = information[station_id];
+        const { lat, lon, marker } = information[station_id];
         if (
           west < lon && lon < east && south < lat && lat < north &&
           (!onlyAvailableBike || 0 < num_bikes_available) &&
           (!onlyAvailableDock || 0 < num_docks_available)
         ) {
-          if (searchText !== "" && name.includes(searchText)) {
-            marker.setIcon(redIcon);
-          } else {
-            marker.setIcon(icon);
-          }
+          marker.setIcon(icon);
           marker.addTo(map);
         } else {
           marker.removeFrom(map);
@@ -368,33 +380,6 @@ function getCurrentRect(map) {
 }
 
 /**
- * @param  {StationInformation} information
- * @param  {StationStatus} status
- * @param  {string} update
- * @param  {string} [systemName]
- */
-function createPopupText(
-  { name, rental_uris },
-  { num_bikes_available, num_docks_available },
-  update,
-  systemName,
-) {
-  if (rental_uris?.web) {
-    return `${systemName ? `<b>[${systemName}]</b><br>` : ""}
-      <b><a href=${rental_uris?.web} target="_brank">${name}</a></b><br>
-      利用可能台数：${num_bikes_available}台<br>
-      返却可能台数：${num_docks_available}台<br>
-      （${update}更新）`;
-  } else {
-    return `${systemName ? `<b>[${systemName}]</b><br>` : ""}
-      <b>${name}</b><br>
-      利用可能台数：${num_bikes_available}台<br>
-      返却可能台数：${num_docks_available}台<br>
-      （${update}更新）`;
-  }
-}
-
-/**
  * @param {L.Map} map
  * @param {{
  *   information: Record<string, StationInformation>;
@@ -455,11 +440,36 @@ function createIcon(iconUrl) {
     iconUrl,
     shadowUrl: "https://esm.sh/leaflet@1.9.2/dist/images/marker-shadow.png",
     iconSize: [25, 25],
-    // iconAnchor: [12, 41],
     popupAnchor: [1, -15],
-    // tooltipAnchor: [16, -28],
     shadowSize: [40, 40],
     shadowAnchor: [3, 20],
     className: "icon-custum",
   });
+}
+
+/**
+ * @param  {StationInformation} information
+ * @param  {StationStatus} status
+ * @param  {string} update
+ * @param  {string} [systemName]
+ */
+function createPopupText(
+  { name, rental_uris },
+  { num_bikes_available, num_docks_available },
+  update,
+  systemName,
+) {
+  if (rental_uris?.web) {
+    return `${systemName ? `<b>[${systemName}]</b><br>` : ""}
+      <b><a href=${rental_uris?.web} target="_brank">${name}</a></b><br>
+      利用可能台数：${num_bikes_available}台<br>
+      返却可能台数：${num_docks_available}台<br>
+      （${update}更新）`;
+  } else {
+    return `${systemName ? `<b>[${systemName}]</b><br>` : ""}
+      <b>${name}</b><br>
+      利用可能台数：${num_bikes_available}台<br>
+      返却可能台数：${num_docks_available}台<br>
+      （${update}更新）`;
+  }
 }
