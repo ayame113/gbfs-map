@@ -17,9 +17,6 @@ const blueIcon = L.icon({
 });
 
 const styleText = `
-.icon-red {
-  filter: hue-rotate(150deg);
-}
 .leaflet-marker-icon.icon-custum {
   background-color: white;
   border-radius: 5px;
@@ -45,7 +42,7 @@ const styleText = `
   background-color: white;
   border: 2px solid rgba(0, 0, 0, 0.2);
   border-radius: 4px;
-  font-size: 80%;
+  font-size: 90%;
 }
 :host>section label {
   display: block;
@@ -111,6 +108,15 @@ export class GbfsMap extends HTMLElement {
         "?d=" + Date.now(),
       signal: this.#abortController.signal,
     });
+    // updateData({
+    //   map,
+    //   availableBikeCheckboxElement,
+    //   availableDockCheckboxElement,
+    //   url:
+    //     "https://cors.deno.dev/https://transport.data.gouv.fr/gbfs/creteil/gbfs.json" +
+    //     "?d=" + Date.now(),
+    //   signal: this.#abortController.signal,
+    // });
   }
   disconnectedCallback() {
     this.#abortController?.abort();
@@ -197,7 +203,7 @@ async function updateData({
   );
   /** @type {StationStatus[]} */
   let currentStatus = [];
-  /** @type {L.LayerGroup | undefined} */
+  /** @type {L.LayerGroup | L.Marker | undefined} */
   let currentLayerGroup;
 
   availableBikeCheckboxElement.addEventListener("change", () => renderIcon());
@@ -213,8 +219,9 @@ async function updateData({
     const systemName = await systemNamePromise;
     const defaultUrl = await defaultUrlPromise;
     for (const st of status) {
-      information[st.station_id].marker.bindPopup(
-        createPopupText(information[st.station_id], st, {
+      const stationInformation = information[st.station_id];
+      stationInformation?.marker.bindPopup(
+        createPopupText(stationInformation, st, {
           update,
           systemName,
           defaultUrl,
@@ -234,23 +241,27 @@ async function updateData({
     const onlyAvailableBike = availableBikeCheckboxElement.checked;
     const onlyAvailableDock = availableDockCheckboxElement.checked;
 
+    /** @type {(L.Rectangle | L.Marker)[]} */
+    const currentTiles = [];
     const zoom = map.getZoom();
     if (13 < zoom) {
-      const { east, west, north, south } = getCurrentRect(map);
+      const { minLng, maxLng, minLat, maxLat } = getCurrentRect(map);
       for (
         const { station_id, num_bikes_available, num_docks_available }
           of currentStatus
       ) {
-        const { lat, lon, marker } = information[station_id];
+        const stationInformation = information[station_id];
+        if (!stationInformation) {
+          continue;
+        }
+        const { lat, lon, marker } = stationInformation;
         if (
-          west < lon && lon < east && south < lat && lat < north &&
+          minLng < lon && lon < maxLng && minLat < lat && lat < maxLat &&
           (!onlyAvailableBike || 0 < num_bikes_available) &&
           (!onlyAvailableDock || 0 < num_docks_available)
         ) {
           marker.setIcon(icon);
-          marker.addTo(map);
-        } else {
-          marker.removeFrom(map);
+          currentTiles.push(marker);
         }
       }
     } else {
@@ -262,8 +273,6 @@ async function updateData({
         latSize: 9 < zoom ? 30 / 60 / 60 : 6 < zoom ? 5 / 60 : 8 / zoom,
         lngSize: 9 < zoom ? 45 / 60 / 60 : 6 < zoom ? 7.5 / 60 : 8 / zoom,
       });
-      /** @type {L.Rectangle[]} */
-      const currentTiles = [];
       for (const tile of tiles) {
         currentTiles.push(L.rectangle(tile.rectangle, {
           stroke: false,
@@ -273,11 +282,8 @@ async function updateData({
           interactive: false,
         }));
       }
-      currentLayerGroup = L.layerGroup(currentTiles).addTo(map);
-      for (const { station_id } of currentStatus) {
-        information[station_id].marker.removeFrom(map);
-      }
     }
+    currentLayerGroup = L.layerGroup(currentTiles).addTo(map);
   }
 }
 
@@ -339,7 +345,7 @@ async function getSystemInformation(url) {
 async function getStationInformation(url) {
   const response = await fetch(`${url}?d=${Date.now()}`);
   const { data: { stations } } = await response.json();
-  /** @type {Record<string, StationInformation>} */
+  /** @type {Record<string, StationInformation | undefined>} */
   const result = {};
   for (const station of stations) {
     result[station.station_id] = {
@@ -355,6 +361,8 @@ async function getStationInformation(url) {
 
 /**
  * @typedef {{
+ *   is_renting: boolean;
+ *   is_returning: boolean;
  *   num_bikes_available: number;
  *   num_docks_available: number;
  *   station_id: string;
@@ -380,18 +388,22 @@ async function* getStationStatus(url) {
 /** @param  {L.Map} map */
 function getCurrentRect(map) {
   const bounds = map.getBounds();
+  const east = bounds.getEast();
+  const west = bounds.getWest();
+  const north = bounds.getNorth();
+  const south = bounds.getSouth();
   return {
-    east: bounds.getEast(),
-    west: bounds.getWest(),
-    north: bounds.getNorth(),
-    south: bounds.getSouth(),
+    minLng: Math.min(east, west),
+    maxLng: Math.max(east, west),
+    minLat: Math.min(north, south),
+    maxLat: Math.max(north, south),
   };
 }
 
 /**
  * @param {L.Map} map
  * @param {{
- *   information: Record<string, StationInformation>;
+ *   information: Record<string, StationInformation | undefined>;
  *   status: StationStatus[]
  *   onlyAvailableBike:boolean;
  *   onlyAvailableDock: boolean;
@@ -407,11 +419,7 @@ function getCurrentTiles(map, {
   lngSize,
   latSize,
 }) {
-  const { east, west, north, south } = getCurrentRect(map);
-  const minLng = Math.min(east, west);
-  const maxLng = Math.max(east, west);
-  const minLat = Math.min(north, south);
-  const maxLat = Math.max(north, south);
+  const { minLng, maxLng, minLat, maxLat } = getCurrentRect(map);
   const lngStart = Math.floor(minLng / lngSize) * lngSize;
   const lngEnd = Math.ceil(maxLng / lngSize) * lngSize;
   const latStart = Math.floor(minLat / latSize) * latSize;
@@ -421,7 +429,11 @@ function getCurrentTiles(map, {
   for (
     const { station_id, num_bikes_available, num_docks_available } of status
   ) {
-    const { lat, lon } = information[station_id];
+    const stationInformation = information[station_id];
+    if (!stationInformation) {
+      continue;
+    }
+    const { lat, lon } = stationInformation;
     if (
       lngStart < lon && lon < lngEnd && latStart < lat && lat < latEnd &&
       (!onlyAvailableBike || 0 < num_bikes_available) &&
@@ -449,7 +461,8 @@ function createIcon(iconUrl) {
     iconUrl,
     shadowUrl: "https://esm.sh/leaflet@1.9.2/dist/images/marker-shadow.png",
     iconSize: [25, 25],
-    popupAnchor: [1, -15],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -10],
     shadowSize: [40, 40],
     shadowAnchor: [3, 20],
     className: "icon-custum",
@@ -463,21 +476,14 @@ function createIcon(iconUrl) {
  */
 function createPopupText(
   { name, rental_uris },
-  { num_bikes_available, num_docks_available },
+  { num_bikes_available, num_docks_available, is_renting, is_returning },
   { update, systemName, defaultUrl },
 ) {
   const url = rental_uris?.web || defaultUrl;
-  if (url) {
-    return `${systemName ? `<b>[${systemName}]</b><br>` : ""}
-      <b><a href=${url} target="_brank">${name}</a></b><br>
-      利用可能台数：${num_bikes_available}台<br>
-      返却可能台数：${num_docks_available}台<br>
-      （${update}更新）`;
-  } else {
-    return `${systemName ? `<b>[${systemName}]</b><br>` : ""}
-      <b>${name}</b><br>
-      利用可能台数：${num_bikes_available}台<br>
-      返却可能台数：${num_docks_available}台<br>
-      （${update}更新）`;
-  }
+  return `
+    ${systemName ? `<b>[${systemName}]</b><br>` : ""}
+    <b>${url ? `<a href=${url} target="_brank">${name}</a>` : name}</b><br><hr>
+    貸出${is_renting ? `🆗（${num_bikes_available}台）` : "🆖"}<br>
+    返却${is_returning ? `🆗（${num_docks_available}台）` : "🆖"}<br>
+    （${update}更新）`;
 }
