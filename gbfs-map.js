@@ -203,7 +203,7 @@ async function updateData({
   );
   /** @type {StationStatus[]} */
   let currentStatus = [];
-  /** @type {L.LayerGroup | L.Marker | undefined} */
+  /** @type {L.LayerGroup | undefined} */
   let currentLayerGroup;
 
   availableBikeCheckboxElement.addEventListener("change", () => renderIcon());
@@ -241,15 +241,17 @@ async function updateData({
     const onlyAvailableBike = availableBikeCheckboxElement.checked;
     const onlyAvailableDock = availableDockCheckboxElement.checked;
 
-    /** @type {(L.Rectangle | L.Marker)[]} */
-    const currentTiles = [];
     const zoom = map.getZoom();
     if (13 < zoom) {
       const { minLng, maxLng, minLat, maxLat } = getCurrentRect(map);
-      for (
-        const { station_id, num_bikes_available, num_docks_available }
-          of currentStatus
-      ) {
+      for (const st of currentStatus) {
+        const {
+          station_id,
+          num_bikes_available,
+          num_docks_available,
+          is_renting,
+          is_returning,
+        } = st;
         const stationInformation = information[station_id];
         if (!stationInformation) {
           continue;
@@ -257,14 +259,18 @@ async function updateData({
         const { lat, lon, marker } = stationInformation;
         if (
           minLng < lon && lon < maxLng && minLat < lat && lat < maxLat &&
-          (!onlyAvailableBike || 0 < num_bikes_available) &&
-          (!onlyAvailableDock || 0 < num_docks_available)
+          (!onlyAvailableBike || 0 < num_bikes_available && is_renting) &&
+          (!onlyAvailableDock || 0 < num_docks_available && is_returning)
         ) {
           marker.setIcon(icon);
-          currentTiles.push(marker);
+          marker.addTo(map);
+        } else {
+          marker.removeFrom(map);
         }
       }
     } else {
+      /** @type {L.Rectangle[]} */
+      const currentTiles = [];
       const tiles = getCurrentTiles(map, {
         status: currentStatus,
         information,
@@ -282,8 +288,15 @@ async function updateData({
           interactive: false,
         }));
       }
+      currentLayerGroup = L.layerGroup(currentTiles).addTo(map);
+      for (const { station_id } of currentStatus) {
+        const stationInformation = information[station_id];
+        if (!stationInformation) {
+          continue;
+        }
+        stationInformation.marker.removeFrom(map);
+      }
     }
-    currentLayerGroup = L.layerGroup(currentTiles).addTo(map);
   }
 }
 
@@ -427,8 +440,15 @@ function getCurrentTiles(map, {
   /** @type {Record<string, {count: number; rectangle: [[number, number], [number, number]];}>} */
   const res = {};
   for (
-    const { station_id, num_bikes_available, num_docks_available } of status
+    const st of status
   ) {
+    const {
+      station_id,
+      num_bikes_available,
+      num_docks_available,
+      is_renting,
+      is_returning,
+    } = st;
     const stationInformation = information[station_id];
     if (!stationInformation) {
       continue;
@@ -436,8 +456,8 @@ function getCurrentTiles(map, {
     const { lat, lon } = stationInformation;
     if (
       lngStart < lon && lon < lngEnd && latStart < lat && lat < latEnd &&
-      (!onlyAvailableBike || 0 < num_bikes_available) &&
-      (!onlyAvailableDock || 0 < num_docks_available)
+      (!onlyAvailableBike || 0 < num_bikes_available && is_renting) &&
+      (!onlyAvailableDock || 0 < num_docks_available && is_returning)
     ) {
       const baseLng = Math.floor(lon / lngSize);
       const baseLat = Math.floor(lat / latSize);
@@ -481,9 +501,13 @@ function createPopupText(
 ) {
   const url = rental_uris?.web || defaultUrl;
   return `
-    ${systemName ? `<b>[${systemName}]</b><br>` : ""}
-    <b>${url ? `<a href=${url} target="_brank">${name}</a>` : name}</b><br><hr>
-    貸出${is_renting ? `🆗（${num_bikes_available}台）` : "🆖"}<br>
-    返却${is_returning ? `🆗（${num_docks_available}台）` : "🆖"}<br>
-    （${update}更新）`;
+  ${systemName ? `<b>[${systemName}]</b><br>` : ""}
+  <b>${url ? `<a href=${url} target="_brank">${name}</a>` : name}</b><br><hr>
+  貸出${
+    is_renting && 0 < num_bikes_available ? `🆗（${num_bikes_available}台）` : "🆖"
+  }<br>
+  返却${
+    is_returning && 0 < num_docks_available ? `🆗（${num_docks_available}台）` : "🆖"
+  }<br>
+  （${update}更新）`;
 }
