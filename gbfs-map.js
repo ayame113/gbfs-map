@@ -66,6 +66,28 @@ const styleText = `
 :host>section input {
   cursor: pointer;
 }
+.available {
+  display: inline-block;
+  background-color: mediumseagreen;
+  color: white;
+  font-size: 0.8em;
+  font-weight: bold;
+  border-radius: 0.2em;
+  padding: 0.1em 0.2em;
+  margin: 0.1em 0.2em;
+  line-height: 1.5em;
+}
+.unavailable {
+  display: inline-block;
+  background-color: crimson;
+  color: white;
+  font-size: 0.8em;
+  font-weight: bold;
+  border-radius: 0.2em;
+  padding: 0.1em 0.2em;
+  margin: 0.1em 0.2em;
+  line-height: 1.5em;
+}
 `;
 
 // init stylesheet
@@ -130,16 +152,26 @@ export class GbfsMap extends HTMLElement {
     const availableDockCheckboxLabel = document.createElement("label");
     const availableBikeCheckboxElement = document.createElement("input");
     const availableDockCheckboxElement = document.createElement("input");
+    const bikeAvailableIconElement = document.createElement("span");
+    const dockAvailableIconElement = document.createElement("span");
     const mapElement = document.createElement("div");
     availableBikeCheckboxElement.setAttribute("type", "checkbox");
     availableDockCheckboxElement.setAttribute("type", "checkbox");
+    bikeAvailableIconElement.classList.add("available");
+    dockAvailableIconElement.classList.add("available");
+    bikeAvailableIconElement.append("OK");
+    dockAvailableIconElement.append("OK");
     availableBikeCheckboxLabel.append(
       availableBikeCheckboxElement,
-      "貸出可能ポートのみ表示",
+      "貸出",
+      bikeAvailableIconElement,
+      "のみ表示",
     );
     availableDockCheckboxLabel.append(
       availableDockCheckboxElement,
-      "返却可能ポートのみ表示",
+      "返却",
+      dockAvailableIconElement,
+      "のみ表示",
     );
     checkboxWrapper.append(
       availableBikeCheckboxLabel,
@@ -504,10 +536,14 @@ function createPopupText(
   ${systemName ? `<b>[${systemName}]</b><br>` : ""}
   <b>${url ? `<a href=${url} target="_brank">${name}</a>` : name}</b><br><hr>
   貸出${
-    is_renting && 0 < num_bikes_available ? `🆗（${num_bikes_available}台）` : "🆖"
+    is_renting && 0 < num_bikes_available
+      ? `<span class="available">OK</span>（${num_bikes_available}台）`
+      : `<span class="unavailable">NG</span>`
   }<br>
   返却${
-    is_returning && 0 < num_docks_available ? `🆗（${num_docks_available}台）` : "🆖"
+    is_returning && 0 < num_docks_available
+      ? `<span class="available">OK</span>（${num_docks_available}台）`
+      : `<span class="unavailable">NG</span>`
   }<br>
   （${update}更新）`;
 }
