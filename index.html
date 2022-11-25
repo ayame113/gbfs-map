@@ -13,12 +13,17 @@
 				margin: 0;
 			}
 			gbfs-map{
-				height: 90vh;
+				height: 80vh;
 			}
 		</style>
 	</head>
 	<body>
-		<gbfs-map x-default-lat="35.68123355100922" x-default-lng="139.76712357086677"></gbfs-map>
+		<gbfs-map
+			x-url="https://api-public.odpt.org/api/v4/gbfs/hellocycling/gbfs.json,https://api-public.odpt.org/api/v4/gbfs/docomo-cycle-tokyo/gbfs.json"
+			x-default-lat="35.68123355100922"
+			x-default-lng="139.76712357086677"
+			x-cors
+		></gbfs-map>
 		<ul>
 			<li><a href="https://github.com/ayame113/gbfs-map">GitHub</a></li>
 			<li>GPUが無い端末で閲覧すると、動作がカクつきます。</li>

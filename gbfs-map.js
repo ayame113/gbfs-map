@@ -94,12 +94,34 @@ const styleText = `
 const defaultStyle = new CSSStyleSheet();
 defaultStyle.replace(styleText);
 const leafletStyle = new CSSStyleSheet();
-(async () => {
+(async () => { // avoid tla
   const res = await fetch("https://esm.sh/leaflet@1.9.2/dist/leaflet.css");
   leafletStyle.replace(await res.text());
 })();
 
 export class GbfsMap extends HTMLElement {
+  /** @param  {string} url */
+  /**
+   * Creates a CORS proxy URL that will be used if x-cors is specified.
+   * Override here if you want to use any CORS proxy. By default cors.deno.dev is used.
+   *
+   * ```
+   * import { GbfsMap } from "./gbfs-map.js";
+   * GbfsMap.toCorsUrl = url => `https://my-cors-proxy/${url}`
+   * ```
+   *
+   * @param  {string} url
+   */
+  static toCorsUrl(url) {
+    return `https://cors.deno.dev/${url}`;
+  }
+  /**
+   * [i18n description]
+   * @type {Record<string, {}>}
+   */
+  static i18n = {
+    ja: {},
+  };
   /** @type {AbortController | undefined} */
   #abortController;
   #shadowRoot;
@@ -112,33 +134,26 @@ export class GbfsMap extends HTMLElement {
     this.#abortController = new AbortController();
     const { map, availableBikeCheckboxElement, availableDockCheckboxElement } =
       this.#initElement();
-    updateData({
-      map,
-      availableBikeCheckboxElement,
-      availableDockCheckboxElement,
-      url:
-        "https://cors.deno.dev/https://api-public.odpt.org/api/v4/gbfs/hellocycling/gbfs.json" +
-        "?d=" + Date.now(),
-      signal: this.#abortController.signal,
-    });
-    updateData({
-      map,
-      availableBikeCheckboxElement,
-      availableDockCheckboxElement,
-      url:
-        "https://cors.deno.dev/https://api-public.odpt.org/api/v4/gbfs/docomo-cycle-tokyo/gbfs.json" +
-        "?d=" + Date.now(),
-      signal: this.#abortController.signal,
-    });
-    // updateData({
-    //   map,
-    //   availableBikeCheckboxElement,
-    //   availableDockCheckboxElement,
-    //   url:
-    //     "https://cors.deno.dev/https://transport.data.gouv.fr/gbfs/creteil/gbfs.json" +
-    //     "?d=" + Date.now(),
-    //   signal: this.#abortController.signal,
-    // });
+    const urls = this.getAttribute("x-url");
+    if (!urls) {
+      return;
+    }
+    const urlConverter = this.hasAttribute("x-cors")
+      ? GbfsMap.toCorsUrl
+      : undefined;
+    const preferredLanguages = this.getAttribute("x-preferred-languages");
+    for (const url of urls.split(",")) {
+      observeMapData(map, {
+        availableBikeCheckboxElement,
+        availableDockCheckboxElement,
+        url,
+        signal: this.#abortController.signal,
+        urlConverter,
+        preferredLanguages: preferredLanguages
+          ? preferredLanguages.split(",")
+          : undefined,
+      });
+    }
   }
   disconnectedCallback() {
     this.#abortController?.abort();
@@ -196,29 +211,38 @@ export class GbfsMap extends HTMLElement {
 customElements.define("gbfs-map", GbfsMap);
 
 /**
+ * @param {L.Map} map
  * @param {{
- *   map: L.Map;
  *   url: string;
  *   availableBikeCheckboxElement: HTMLInputElement;
  *   availableDockCheckboxElement: HTMLInputElement;
- *   signal: AbortSignal
+ *   urlConverter?: (url: string)=>string;
+ *   preferredLanguages?: string[];
+ *   signal?: AbortSignal;
  * }} param
  */
-async function updateData({
-  map,
+async function observeMapData(map, {
   url,
   availableBikeCheckboxElement,
   availableDockCheckboxElement,
+  urlConverter,
+  preferredLanguages,
   signal,
 }) {
-  signal.throwIfAborted();
-  const endpoints = await getRegistryInformation(url);
-  const systemInformationEndpoint =
-    `https://cors.deno.dev/${endpoints.systemInformationEndpoint}`;
-  const informationEndpoint =
-    `https://cors.deno.dev/${endpoints.stationInformationEndpoint}`;
-  const statusEndpoint =
-    `https://cors.deno.dev/${endpoints.stationStatusEndpoint}`;
+  signal?.throwIfAborted();
+  const endpoints = await getRegistryInformation(
+    urlConverter ? urlConverter(url) : url,
+    preferredLanguages,
+  );
+  const systemInformationEndpoint = urlConverter
+    ? urlConverter(endpoints.systemInformationEndpoint)
+    : endpoints.systemInformationEndpoint;
+  const informationEndpoint = urlConverter
+    ? urlConverter(endpoints.stationInformationEndpoint)
+    : endpoints.stationInformationEndpoint;
+  const statusEndpoint = urlConverter
+    ? urlConverter(endpoints.stationStatusEndpoint)
+    : endpoints.stationStatusEndpoint;
   const informationPromise = getStationInformation(informationEndpoint);
   const systemInformationPromise = getSystemInformation(
     systemInformationEndpoint,
@@ -243,7 +267,7 @@ async function updateData({
 
   map.on("moveend", renderIcon);
   for await (const { status, update } of getStationStatus(statusEndpoint)) {
-    if (signal.aborted) {
+    if (signal?.aborted) {
       break;
     }
     currentStatus = status;
@@ -471,9 +495,7 @@ function getCurrentTiles(map, {
   const latEnd = Math.ceil(maxLat / latSize) * latSize;
   /** @type {Record<string, {count: number; rectangle: [[number, number], [number, number]];}>} */
   const res = {};
-  for (
-    const st of status
-  ) {
+  for (const st of status) {
     const {
       station_id,
       num_bikes_available,
