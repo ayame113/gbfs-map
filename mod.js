@@ -6,7 +6,7 @@
 /// <reference lib="esnext" />
 
 import * as L from "https://esm.sh/leaflet@1.9.2";
-const leafletUrl = "https://esm.sh/leaflet@1.9.3/";
+const leafletUrl = "https://esm.sh/leaflet@1.9.2/";
 
 // default icon
 const blueIcon = L.icon({
