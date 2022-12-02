@@ -18,3 +18,9 @@ You can embed the GBFS portmap into your website using code like the one below.
     x-cors
 ></gbfs-map>
 ```
+
+## Link
+
+- [Demo Site](https://gbfs-map-demo.deno.dev/)
+- [Library](https://deno.land/x/gbfs_map@0.0.1/)
+- [Library document](https://deno.land/x/gbfs_map@0.0.1/mod.js?s=GbfsMap)
