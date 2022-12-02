@@ -102,7 +102,7 @@ const leafletStyle = new CSSStyleSheet();
 
 /**
  * Elements for GBFS data.
- * **This library is compatible with GBFS using version 2.3.**
+ * **This library is compatible with GBFS version 2.3.**
  *
  * ```html
  * <script src="https://deno.land/x/gbfs_map/mod.js" charset="utf-8" type="module"></script>
