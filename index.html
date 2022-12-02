@@ -14,7 +14,7 @@
 			const lat = searchParams.get("lat") ?? "35.68123355100922";
 			const lon = searchParams.get("lon") ?? "139.76712357086677";
 			const lang = searchParams.get("lang") ?? "ja";
-			const scriptSrcCode = '<script src="https://deno.land/x/gbfs_map@0.0.1/mod.js" charset="utf-8" type="module"><' + '/script>';
+			const scriptSrcCode = '<script src="https://deno.land/x/gbfs_map/mod.js" charset="utf-8" type="module"><' + '/script>';
 			const html = `
 <gbfs-map
   x-url="${escapeHtml(url)}"
@@ -76,8 +76,8 @@
 		<h3>link</h3>
 		<ul>
 			<li><a href="https://github.com/ayame113/gbfs-map">GitHub</a></li>
-			<li><a href="https://deno.land/x/gbfs_map@0.0.1/">library</a></li>
-			<li><a href="https://deno.land/x/gbfs_map@0.0.1/mod.js?s=GbfsMap">library document</a></li>
+			<li><a href="https://deno.land/x/gbfs_map/">library</a></li>
+			<li><a href="https://deno.land/x/gbfs_map/mod.js?s=GbfsMap">library document</a></li>
 		</ul>
 	</body>
 </html>
