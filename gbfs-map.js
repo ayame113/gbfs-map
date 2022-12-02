@@ -117,10 +117,27 @@ export class GbfsMap extends HTMLElement {
   }
   /**
    * [i18n description]
-   * @type {Record<string, {}>}
+   * @type {Record<string, I18n | undefined> & Record<"en", I18n>}
    */
   static i18n = {
-    ja: {},
+    en: {
+      availableBikeCheckbox: "Display only lending%OK%",
+      availableDockCheckbox: "Display only return%OK%",
+      availableBike: "Lending:%OK%（%num_bikes_available%）",
+      unavailableBike: "Lending:%NG%",
+      availableDock: "Returning:%OK%（%num_docks_available%）",
+      unavailableDock: "Returning:%NG%",
+      update: "（update: %update%）",
+    },
+    ja: {
+      availableBikeCheckbox: "貸出%OK%のみ表示",
+      availableDockCheckbox: "返却%OK%のみ表示",
+      availableBike: "貸出%OK%（%num_bikes_available%台）",
+      unavailableBike: "貸出%NG%",
+      availableDock: "返却%OK%（%num_docks_available%台）",
+      unavailableDock: "返却%NG%",
+      update: "（%update%更新）",
+    },
   };
   /** @type {AbortController | undefined} */
   #abortController;
@@ -132,8 +149,13 @@ export class GbfsMap extends HTMLElement {
   }
   connectedCallback() {
     this.#abortController = new AbortController();
+    const preferredLanguagesStr = this.getAttribute("x-preferred-languages");
+    const preferredLanguages = preferredLanguagesStr
+      ? preferredLanguagesStr.split(",")
+      : [];
+    console.log({ preferredLanguages });
     const { map, availableBikeCheckboxElement, availableDockCheckboxElement } =
-      this.#initElement();
+      this.#initElement({ preferredLanguages });
     const urls = this.getAttribute("x-url");
     if (!urls) {
       return;
@@ -141,7 +163,6 @@ export class GbfsMap extends HTMLElement {
     const urlConverter = this.hasAttribute("x-cors")
       ? GbfsMap.toCorsUrl
       : undefined;
-    const preferredLanguages = this.getAttribute("x-preferred-languages");
     for (const url of urls.split(",")) {
       observeMapData(map, {
         availableBikeCheckboxElement,
@@ -149,9 +170,7 @@ export class GbfsMap extends HTMLElement {
         url,
         signal: this.#abortController.signal,
         urlConverter,
-        preferredLanguages: preferredLanguages
-          ? preferredLanguages.split(",")
-          : undefined,
+        preferredLanguages: preferredLanguages,
       });
     }
   }
@@ -159,7 +178,9 @@ export class GbfsMap extends HTMLElement {
     this.#abortController?.abort();
     this.#shadowRoot.innerHTML = "";
   }
-  #initElement() {
+  /** @param {{preferredLanguages: string[];}} param0 */
+  #initElement({ preferredLanguages }) {
+    const i18n = getI18n(preferredLanguages);
     const defaultLat = this.getAttribute("x-default-lat") || 0;
     const defaultLng = this.getAttribute("x-default-lng") || 0;
     const checkboxWrapper = document.createElement("section");
@@ -167,26 +188,22 @@ export class GbfsMap extends HTMLElement {
     const availableDockCheckboxLabel = document.createElement("label");
     const availableBikeCheckboxElement = document.createElement("input");
     const availableDockCheckboxElement = document.createElement("input");
-    const bikeAvailableIconElement = document.createElement("span");
-    const dockAvailableIconElement = document.createElement("span");
     const mapElement = document.createElement("div");
     availableBikeCheckboxElement.setAttribute("type", "checkbox");
     availableDockCheckboxElement.setAttribute("type", "checkbox");
-    bikeAvailableIconElement.classList.add("available");
-    dockAvailableIconElement.classList.add("available");
-    bikeAvailableIconElement.append("OK");
-    dockAvailableIconElement.append("OK");
-    availableBikeCheckboxLabel.append(
+    availableBikeCheckboxLabel.innerHTML = escapeHtml(
+      i18n.availableBikeCheckbox,
+    ).replaceAll("%OK%", '<span class="available">OK</span>');
+    availableDockCheckboxLabel.innerHTML = escapeHtml(
+      i18n.availableDockCheckbox,
+    ).replaceAll("%OK%", '<span class="available">OK</span>');
+    availableBikeCheckboxLabel.insertAdjacentElement(
+      "afterbegin",
       availableBikeCheckboxElement,
-      "貸出",
-      bikeAvailableIconElement,
-      "のみ表示",
     );
-    availableDockCheckboxLabel.append(
+    availableDockCheckboxLabel.insertAdjacentElement(
+      "afterbegin",
       availableDockCheckboxElement,
-      "返却",
-      dockAvailableIconElement,
-      "のみ表示",
     );
     checkboxWrapper.append(
       availableBikeCheckboxLabel,
@@ -217,7 +234,7 @@ customElements.define("gbfs-map", GbfsMap);
  *   availableBikeCheckboxElement: HTMLInputElement;
  *   availableDockCheckboxElement: HTMLInputElement;
  *   urlConverter?: (url: string)=>string;
- *   preferredLanguages?: string[];
+ *   preferredLanguages: string[];
  *   signal?: AbortSignal;
  * }} param
  */
@@ -281,7 +298,7 @@ async function observeMapData(map, {
           update,
           systemName,
           defaultUrl,
-        }),
+        }, { preferredLanguages }),
       );
     }
     renderIcon();
@@ -365,9 +382,8 @@ async function getRegistryInformation(url, languages) {
   const { data } = await res.json();
   /** @type {{feeds: {name: string; url: string}[]}} */
   const { feeds } = languages
-    ? languages.find((language) => data[language]) || Object.values(data)[0]
+    ? data[languages.find((language) => data[language]) || Object.keys(data)[0]]
     : Object.values(data)[0];
-
   return {
     stationStatusEndpoint: /** @type {{url: string}} */
       (feeds.find((feed) => feed.name === "station_status")).url,
@@ -546,26 +562,81 @@ function createIcon(iconUrl) {
 /**
  * @param  {StationInformation} information
  * @param  {StationStatus} status
- * @param  {{update: string; systemName?: string; defaultUrl?: string}} options
+ * @param  {{update: string; systemName?: string; defaultUrl?: string}} options1
+ * @param  {{preferredLanguages: string[];}} options2
  */
 function createPopupText(
   { name, rental_uris },
   { num_bikes_available, num_docks_available, is_renting, is_returning },
   { update, systemName, defaultUrl },
+  { preferredLanguages },
 ) {
+  const i18n = getI18n(preferredLanguages);
   const url = rental_uris?.web || defaultUrl;
+  const bikeText = is_renting && 0 < num_bikes_available
+    ? i18n.availableBike
+    : i18n.unavailableBike;
+  const dockText = is_returning && 0 < num_docks_available
+    ? i18n.availableDock
+    : i18n.unavailableDock;
+  const updateText = escapeHtml(i18n.update).replaceAll("%update%", update);
   return `
   ${systemName ? `<b>[${systemName}]</b><br>` : ""}
   <b>${url ? `<a href=${url} target="_brank">${name}</a>` : name}</b><br><hr>
-  貸出${
-    is_renting && 0 < num_bikes_available
-      ? `<span class="available">OK</span>（${num_bikes_available}台）`
-      : `<span class="unavailable">NG</span>`
+  ${
+    escapeHtml(bikeText)
+      .replaceAll("%OK%", '<span class="available">OK</span>')
+      .replaceAll("%NG%", '<span class="unavailable">NG</span>')
+      .replaceAll("%num_bikes_available%", `${num_bikes_available}`)
   }<br>
-  返却${
-    is_returning && 0 < num_docks_available
-      ? `<span class="available">OK</span>（${num_docks_available}台）`
-      : `<span class="unavailable">NG</span>`
+  ${
+    escapeHtml(dockText)
+      .replaceAll("%OK%", '<span class="available">OK</span>')
+      .replaceAll("%NG%", '<span class="unavailable">NG</span>')
+      .replaceAll("%num_docks_available%", `${num_docks_available}`)
   }<br>
-  （${update}更新）`;
+  ${updateText}`;
+}
+
+/**
+ * @typedef {{
+ *    availableBikeCheckbox: string;
+ *    availableDockCheckbox: string;
+ *    availableBike: string;
+ *    unavailableBike: string;
+ *    availableDock: string;
+ *    unavailableDock: string;
+ *    update: string;
+ * }} I18n
+ */
+
+/**
+ * get i18n object
+ * @param {string[]} preferredLanguages
+ */
+function getI18n(preferredLanguages) {
+  for (const language of preferredLanguages) {
+    const i18n = GbfsMap.i18n[language];
+    if (i18n) {
+      return i18n;
+    }
+  }
+  return GbfsMap.i18n.en;
+}
+
+/**
+ * escape html tag
+ * @param  {string} str
+ */
+function escapeHtml(str) {
+  return str.replaceAll(/[&'`"<>]/g, (match) => {
+    return /** @type{string} */ ({
+      "&": "&amp;",
+      "'": "&#x27;",
+      "`": "&#x60;",
+      '"': "&quot;",
+      "<": "&lt;",
+      ">": "&gt;",
+    }[match]);
+  });
 }
