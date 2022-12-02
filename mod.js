@@ -102,6 +102,8 @@ const leafletStyle = new CSSStyleSheet();
 
 /**
  * Elements for GBFS data.
+ * **This library is compatible with GBFS using version 2.3.**
+ *
  * ```html
  * <script src="https://deno.land/x/gbfs_map/mod.js" charset="utf-8" type="module"></script>
  * <gbfs-map
@@ -112,8 +114,9 @@ const leafletStyle = new CSSStyleSheet();
  *   x-cors
  * ></gbfs-map>
  * ```
+ *
  * You can specify the following attributes to control the display.
- * - `x-url`: endpoint for `gbfs.json`. You can specify multiple options by separating them with commas.
+ * - `x-url`: endpoint for `gbfs.json`. You can specify multiple options by separating them with commas. See https://github.com/MobilityData/gbfs/blob/master/systems.csv for available API endpoints.
  * - `x-default-lat`: Initial coordinates of the map (latitude).
  * - `x-default-lon`: Initial coordinates of the map (longitude).
  * - `x-preferred-languages`: Language you want to display. If the API does not return data for that language, it will fallback to the first value returned by the API. You can specify multiple options by separating them with commas. (example: `"ja,en"`)

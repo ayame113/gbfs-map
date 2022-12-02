@@ -6,6 +6,8 @@ A library for displaying GBFS port data on a map.
 
 ![image](https://user-images.githubusercontent.com/40050810/205360212-db4960f5-4a79-4c19-abe6-f92ce02e0feb.png)
 
+> **Note** This library is compatible with GBFS using version 2.3.
+
 You can embed the GBFS portmap into your website using code like the one below.
 
 ```html
@@ -18,6 +20,9 @@ You can embed the GBFS portmap into your website using code like the one below.
     x-cors
 ></gbfs-map>
 ```
+
+See https://github.com/MobilityData/gbfs/blob/master/systems.csv for available
+API endpoints.
 
 ## Link
 
