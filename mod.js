@@ -6,12 +6,13 @@
 /// <reference lib="esnext" />
 
 import * as L from "https://esm.sh/leaflet@1.9.2";
+const leafletUrl = "https://esm.sh/leaflet@1.9.3/";
 
 // default icon
 const blueIcon = L.icon({
-  iconUrl: "https://esm.sh/leaflet@1.9.2/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://esm.sh/leaflet@1.9.2/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://esm.sh/leaflet@1.9.2/dist/images/marker-shadow.png",
+  iconUrl: `${leafletUrl}dist/images/marker-icon.png`,
+  iconRetinaUrl: `${leafletUrl}dist/images/marker-icon-2x.png`,
+  shadowUrl: `${leafletUrl}dist/images/marker-shadow.png`,
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
@@ -98,7 +99,7 @@ const defaultStyle = new CSSStyleSheet();
 defaultStyle.replace(styleText);
 const leafletStyle = new CSSStyleSheet();
 (async () => { // avoid tla
-  const res = await fetch("https://esm.sh/leaflet@1.9.2/dist/leaflet.css");
+  const res = await fetch(`${leafletUrl}dist/leaflet.css`);
   leafletStyle.replace(await res.text());
 })();
 
@@ -643,7 +644,7 @@ function getCurrentRect(map) {
 function createIcon(iconUrl) {
   return L.icon({
     iconUrl,
-    shadowUrl: "https://esm.sh/leaflet@1.9.2/dist/images/marker-shadow.png",
+    shadowUrl: `${leafletUrl}dist/images/marker-shadow.png`,
     iconSize: [25, 25],
     iconAnchor: [15, 15],
     popupAnchor: [0, -10],
