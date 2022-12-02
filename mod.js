@@ -103,7 +103,7 @@ const leafletStyle = new CSSStyleSheet();
 /**
  * Elements for GBFS data.
  * ```html
- * <script src="./gbfs-map.js" charset="utf-8" type="module"></script>
+ * <script src="https://deno.land/x/gbfs_map@0.0.1/mod.js" charset="utf-8" type="module"></script>
  * <gbfs-map
  *   x-url="https://api-public.odpt.org/api/v4/gbfs/hellocycling/gbfs.json,https://api-public.odpt.org/api/v4/gbfs/docomo-cycle-tokyo/gbfs.json"
  *   x-default-lat="35.68123355100922"
@@ -125,7 +125,7 @@ export class GbfsMap extends HTMLElement {
    * Override here if you want to use any CORS proxy. By default cors.deno.dev is used.
    *
    * ```
-   * import { GbfsMap } from "./gbfs-map.js";
+   * import { GbfsMap } from "https://deno.land/x/gbfs_map@0.0.1/mod.js";
    * GbfsMap.toCorsUrl = url => `https://my-cors-proxy/${url}`
    * ```
    *
@@ -138,6 +138,7 @@ export class GbfsMap extends HTMLElement {
    * Dictionary used for localization of map control elements.
    * Add values to this object if you want to extend your localization.
    * ```js
+   * import { GbfsMap } from "https://deno.land/x/gbfs_map@0.0.1/mod.js";
    * GbfsMap.i18n.fr = {
    *   availableBikeCheckbox: "Display only lending%OK%",
    *   availableDockCheckbox: "Display only return%OK%",

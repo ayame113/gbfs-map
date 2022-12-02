@@ -7,7 +7,38 @@
 		<!-- Copyright 2018 Twitter, Inc and other contributors. Graphics licensed under CC-BY 4.0: https://creativecommons.org/licenses/by/4.0/ -->
 		<link rel="icon" type="image/png" href="https://favi.deno.dev/🚲.png" />
 		<link rel="apple-touch-icon" href="https://favi.deno.dev/🚲.png" />
-		<script src="./gbfs-map.js" charset="utf-8" type="module"></script>
+		<script src="./mod.js" charset="utf-8" type="module"></script>
+		<script type="module">
+			const { searchParams } = new URL(location.href);
+			const url = searchParams.get("url") ?? "https://api-public.odpt.org/api/v4/gbfs/hellocycling/gbfs.json,https://api-public.odpt.org/api/v4/gbfs/docomo-cycle-tokyo/gbfs.json";
+			const lat = searchParams.get("lat") ?? "35.68123355100922";
+			const lon = searchParams.get("lon") ?? "139.76712357086677";
+			const lang = searchParams.get("lang") ?? "ja";
+			const scriptSrcCode = '<script src="https://deno.land/x/gbfs_map@0.0.1/mod.js" charset="utf-8" type="module"><' + '/script>';
+			const html = `
+<gbfs-map
+  x-url="${escapeHtml(url)}"
+  x-default-lat="${escapeHtml(lat)}"
+  x-default-lng="${escapeHtml(lon)}"
+  x-preferred-languages="${escapeHtml(lang)}"
+  x-cors
+></gbfs-map>`
+			document.getElementById("map").innerHTML = html;
+			document.getElementById("code").innerText = scriptSrcCode + html;
+			function escapeHtml(str) {
+				return str.replaceAll(/[&'`"<>]/g, (match) => {
+					return /** @type{string} */ ({
+					"&": "&amp;",
+					"'": "&#x27;",
+					"`": "&#x60;",
+					'"': "&quot;",
+					"<": "&lt;",
+					">": "&gt;",
+					}[match]);
+				});
+			}
+		</script>
+		</script>
 		<style media="screen">
 			body{
 				margin: 0;
@@ -15,19 +46,38 @@
 			gbfs-map{
 				height: 80vh;
 			}
+			pre{
+				background-color: #efefef;
+				padding: 0.5em;
+				border-radius: 0.5em;
+			}
+			h3{
+				border-bottom: 2px #eee solid;
+				margin: 0.5em;
+			}
 		</style>
 	</head>
 	<body>
-		<gbfs-map
-			x-url="https://api-public.odpt.org/api/v4/gbfs/hellocycling/gbfs.json,https://api-public.odpt.org/api/v4/gbfs/docomo-cycle-tokyo/gbfs.json"
-			x-default-lat="35.68123355100922"
-			x-default-lng="139.76712357086677"
-			x-preferred-languages="ja"
-			x-cors
-		></gbfs-map>
+		<div id="map"></div>
+		<h3>GBFS visualizer Demo</h3>
+		This site is a demo site that displays GBFS data on a map.
+		<h3>code</h3>
+		(Copy and paste the code below to embed this map on your site.)
+		<code>
+			<pre id="code"></pre>
+		</code>
+		<h3>example</h3>
+		<ul>
+			<li><a href="/">TOP (docomo bike shere & HELLO CYCLEING)</a></li>
+			<li><a href="/?url=https://gbfs.bcycle.com/bcycle_encinitas/gbfs.json&lat=33.03818&lon=-117.293&lang=en">/?url=https://gbfs.bcycle.com/bcycle_encinitas/gbfs.json&lat=33.03818&lon=-117.293&lang=en</a></li>
+			<li><a href="/?url=https://gbfs.nextbike.net/maps/gbfs/v2/nextbike_zg/gbfs.json&lat=57.719031&lon=11.948186&lang=en">/?url=https://gbfs.nextbike.net/maps/gbfs/v2/nextbike_zg/gbfs.json&lat=57.719031&lon=11.948186&lang=en</a></li>
+		</ul>
+		(Please specify any URL and coordinates as parameters.)
+		<h3>link</h3>
 		<ul>
 			<li><a href="https://github.com/ayame113/gbfs-map">GitHub</a></li>
-			<li>GPUが無い端末で閲覧すると、動作がカクつきます。</li>
+			<li><a href="https://deno.land/x/gbfs_map@0.0.1/">libraly</a></li>
+			<li><a href="https://deno.land/x/gbfs_map@0.0.1/mod.js">libraly document</a></li>
 		</ul>
 	</body>
 </html>
