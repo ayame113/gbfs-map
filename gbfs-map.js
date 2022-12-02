@@ -5,6 +5,7 @@
 
 import * as L from "https://esm.sh/leaflet@1.9.2";
 
+// default icon
 const blueIcon = L.icon({
   iconUrl: "https://esm.sh/leaflet@1.9.2/dist/images/marker-icon.png",
   iconRetinaUrl: "https://esm.sh/leaflet@1.9.2/dist/images/marker-icon-2x.png",
@@ -99,8 +100,26 @@ const leafletStyle = new CSSStyleSheet();
   leafletStyle.replace(await res.text());
 })();
 
+/**
+ * Elements for GBFS data.
+ * ```html
+ * <script src="./gbfs-map.js" charset="utf-8" type="module"></script>
+ * <gbfs-map
+ *   x-url="https://api-public.odpt.org/api/v4/gbfs/hellocycling/gbfs.json,https://api-public.odpt.org/api/v4/gbfs/docomo-cycle-tokyo/gbfs.json"
+ *   x-default-lat="35.68123355100922"
+ *   x-default-lng="139.76712357086677"
+ *   x-preferred-languages="ja"
+ *   x-cors
+ * ></gbfs-map>
+ * ```
+ * You can specify the following attributes to control the display.
+ * - `x-url`: endpoint for `gbfs.json`. You can specify multiple options by separating them with commas.
+ * - `x-default-lat`: Initial coordinates of the map (latitude).
+ * - `x-default-lng`: Initial coordinates of the map (longitude).
+ * - `x-preferred-languages`: Language you want to display. If the API does not return data for that language, it will fallback to the first value returned by the API. You can specify multiple options by separating them with commas. (example: `"ja,en"`)
+ * - `x-cors`: Specifying this attribute enables the CORS proxy. By default cors.deno.dev is used. Override `GbfsMap.toCorsUrl` if you want to use a different CORS proxy.
+ */
 export class GbfsMap extends HTMLElement {
-  /** @param  {string} url */
   /**
    * Creates a CORS proxy URL that will be used if x-cors is specified.
    * Override here if you want to use any CORS proxy. By default cors.deno.dev is used.
@@ -116,7 +135,29 @@ export class GbfsMap extends HTMLElement {
     return `https://cors.deno.dev/${url}`;
   }
   /**
-   * [i18n description]
+   * Dictionary used for localization of map control elements.
+   * Add values to this object if you want to extend your localization.
+   * ```js
+   * GbfsMap.i18n.fr = {
+   *   availableBikeCheckbox: "Display only lending%OK%",
+   *   availableDockCheckbox: "Display only return%OK%",
+   *   availableBike: "Lending:%OK%（%num_bikes_available%）",
+   *   unavailableBike: "Lending:%NG%",
+   *   availableDock: "Returning:%OK%（%num_docks_available%）",
+   *   unavailableDock: "Returning:%NG%",
+   *   update: "（update: %update%）",
+   * }
+   * ```
+   * The value specified in the x-preferred-languages attribute is used.
+   * Fallback to English if no suitable localization is found.
+   * You can embed a value in the format `%xxx%`:
+   * - `%OK%`: OK icon
+   * - `%NG%`: NG icon
+   * - `%num_bikes_available%`: number of bikes available
+   * - `%num_docks_available%`: number of docks available
+   * - `%update%`: updated time
+   *
+   * You definitely need to create properties for `availableBikeCheckbox`, `availableDockCheckbox`, `unavailableBike`, `availableBike`, `unavailableBike`, `availableDock`, `unavailableDock` and `update`.
    * @type {Record<string, I18n | undefined> & Record<"en", I18n>}
    */
   static i18n = {
@@ -148,12 +189,12 @@ export class GbfsMap extends HTMLElement {
     this.#shadowRoot.adoptedStyleSheets = [defaultStyle, leafletStyle];
   }
   connectedCallback() {
+    // abort when disconnected
     this.#abortController = new AbortController();
     const preferredLanguagesStr = this.getAttribute("x-preferred-languages");
     const preferredLanguages = preferredLanguagesStr
       ? preferredLanguagesStr.split(",")
       : [];
-    console.log({ preferredLanguages });
     const { map, availableBikeCheckboxElement, availableDockCheckboxElement } =
       this.#initElement({ preferredLanguages });
     const urls = this.getAttribute("x-url");
@@ -178,7 +219,10 @@ export class GbfsMap extends HTMLElement {
     this.#abortController?.abort();
     this.#shadowRoot.innerHTML = "";
   }
-  /** @param {{preferredLanguages: string[];}} param0 */
+  /**
+   * init inner HTML.
+   * @param {{preferredLanguages: string[];}} param0
+   */
   #initElement({ preferredLanguages }) {
     const i18n = getI18n(preferredLanguages);
     const defaultLat = this.getAttribute("x-default-lat") || 0;
@@ -228,6 +272,7 @@ export class GbfsMap extends HTMLElement {
 customElements.define("gbfs-map", GbfsMap);
 
 /**
+ * Observe data about cycle ports and update the map whenever there is an update.
  * @param {L.Map} map
  * @param {{
  *   url: string;
@@ -260,6 +305,7 @@ async function observeMapData(map, {
   const statusEndpoint = urlConverter
     ? urlConverter(endpoints.stationStatusEndpoint)
     : endpoints.stationStatusEndpoint;
+  // Avoid await before rendering
   const informationPromise = getStationInformation(informationEndpoint);
   const systemInformationPromise = getSystemInformation(
     systemInformationEndpoint,
@@ -279,10 +325,18 @@ async function observeMapData(map, {
   /** @type {L.LayerGroup | undefined} */
   let currentLayerGroup;
 
+  // add event listener
+  // 1. check box change
   availableBikeCheckboxElement.addEventListener("change", () => renderIcon());
   availableDockCheckboxElement.addEventListener("change", () => renderIcon());
 
+  // 2. mouse move event
   map.on("moveend", renderIcon);
+  signal?.addEventListener("abort", () => {
+    map.off("moveend", renderIcon);
+  });
+
+  // 3. port status update
   for await (const { status, update } of getStationStatus(statusEndpoint)) {
     if (signal?.aborted) {
       break;
@@ -303,19 +357,23 @@ async function observeMapData(map, {
     }
     renderIcon();
   }
-  map.off("moveend", renderIcon);
+
+  // closure
   async function renderIcon() {
     const information = await informationPromise;
     const icon = await iconPromise;
 
+    // Remove all existing tiles
     currentLayerGroup?.removeFrom(map);
     currentLayerGroup = undefined;
 
     const onlyAvailableBike = availableBikeCheckboxElement.checked;
     const onlyAvailableDock = availableDockCheckboxElement.checked;
 
+    // Switches the content to be displayed according to the zoom level.
     const zoom = map.getZoom();
     if (13 < zoom) {
+      // render marker
       const { minLng, maxLng, minLat, maxLat } = getCurrentRect(map);
       for (const st of currentStatus) {
         const {
@@ -330,6 +388,7 @@ async function observeMapData(map, {
           continue;
         }
         const { lat, lon, marker } = stationInformation;
+        // Draws an icon within the visible range
         if (
           minLng < lon && lon < maxLng && minLat < lat && lat < maxLat &&
           (!onlyAvailableBike || 0 < num_bikes_available && is_renting) &&
@@ -342,6 +401,7 @@ async function observeMapData(map, {
         }
       }
     } else {
+      // render blue tile
       /** @type {L.Rectangle[]} */
       const currentTiles = [];
       const tiles = getCurrentTiles(map, {
@@ -362,6 +422,8 @@ async function observeMapData(map, {
         }));
       }
       currentLayerGroup = L.layerGroup(currentTiles).addTo(map);
+
+      // remove all marker
       for (const { station_id } of currentStatus) {
         const stationInformation = information[station_id];
         if (!stationInformation) {
@@ -374,12 +436,14 @@ async function observeMapData(map, {
 }
 
 /**
+ * get gbfs.json data
  * @param  {string} url
  * @param  {string[]} [languages]
  */
 async function getRegistryInformation(url, languages) {
   const res = await fetch(url);
   const { data } = await res.json();
+  // If languages are given, look for them. If it doesn't exist, it will fall back to 0th.
   /** @type {{feeds: {name: string; url: string}[]}} */
   const { feeds } = languages
     ? data[languages.find((language) => data[language]) || Object.keys(data)[0]]
@@ -405,9 +469,12 @@ async function getRegistryInformation(url, languages) {
  * }} SystemInformation
  */
 
-/** @param  {string} url */
+/**
+ * get system_information.json data.
+ * @param  {string} url
+ */
 async function getSystemInformation(url) {
-  const response = await fetch(`${url}?d=${Date.now()}`);
+  const response = await fetch(url);
   const { data } = await response.json();
   return /** @type {SystemInformation} */ (data);
 }
@@ -426,9 +493,12 @@ async function getSystemInformation(url) {
  * }} StationInformation
  */
 
-/** @param  {string} url */
+/**
+ * get station_information.json data.
+ * @param  {string} url
+ */
 async function getStationInformation(url) {
-  const response = await fetch(`${url}?d=${Date.now()}`);
+  const response = await fetch(url);
   const { data: { stations } } = await response.json();
   /** @type {Record<string, StationInformation | undefined>} */
   const result = {};
@@ -456,11 +526,21 @@ async function getStationInformation(url) {
  */
 
 /**
+ * An iterator to get station_status.json.
+ * This iterator will be resolved with new data after waiting for the given ttl.
+ *
+ * ```
+ * for await (const data of getStationStatus(url)) {
+ *   // The data is displayed at intervals of the ttl value returned by the API.
+ *   console.log(data)
+ * }
+ * ```
+ *
  * @param  {string}  url
  */
 async function* getStationStatus(url) {
   while (true) {
-    const response = await fetch(`${url}?d=${Date.now()}`);
+    const response = await fetch(url);
     const { data: { stations }, ttl, last_updated } = await response.json();
     yield {
       status: /** @type {StationStatus[]} */ (stations),
@@ -470,22 +550,9 @@ async function* getStationStatus(url) {
   }
 }
 
-/** @param  {L.Map} map */
-function getCurrentRect(map) {
-  const bounds = map.getBounds();
-  const east = bounds.getEast();
-  const west = bounds.getWest();
-  const north = bounds.getNorth();
-  const south = bounds.getSouth();
-  return {
-    minLng: Math.min(east, west),
-    maxLng: Math.max(east, west),
-    minLat: Math.min(north, south),
-    maxLat: Math.max(north, south),
-  };
-}
-
 /**
+ * Gets the tiles displayed when the map is zoomed out.
+ * The tile color intensity indicates how many ports are in range.
  * @param {L.Map} map
  * @param {{
  *   information: Record<string, StationInformation | undefined>;
@@ -545,7 +612,28 @@ function getCurrentTiles(map, {
   return Object.values(res);
 }
 
-/** @param  {string} iconUrl */
+/**
+ * Returns the range of coordinates currently displayed by the map.
+ * @param  {L.Map} map
+ */
+function getCurrentRect(map) {
+  const bounds = map.getBounds();
+  const east = bounds.getEast();
+  const west = bounds.getWest();
+  const north = bounds.getNorth();
+  const south = bounds.getSouth();
+  return {
+    minLng: Math.min(east, west),
+    maxLng: Math.max(east, west),
+    minLat: Math.min(north, south),
+    maxLat: Math.max(north, south),
+  };
+}
+
+/**
+ * create leaflet icon from ico 's url
+ * @param  {string} iconUrl
+ */
 function createIcon(iconUrl) {
   return L.icon({
     iconUrl,
@@ -560,6 +648,7 @@ function createIcon(iconUrl) {
 }
 
 /**
+ * construct popup text
  * @param  {StationInformation} information
  * @param  {StationStatus} status
  * @param  {{update: string; systemName?: string; defaultUrl?: string}} options1
