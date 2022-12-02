@@ -122,7 +122,7 @@ const leafletStyle = new CSSStyleSheet();
 export class GbfsMap extends HTMLElement {
   /**
    * Creates a CORS proxy URL that will be used if x-cors is specified.
-   * Override here if you want to use any CORS proxy. By default cors.deno.dev is used.
+   * Override here if you want to use any CORS proxy. By default https://cors.deno.dev is used.
    *
    * ```
    * import { GbfsMap } from "https://deno.land/x/gbfs_map/mod.js";
