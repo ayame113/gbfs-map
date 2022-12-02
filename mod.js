@@ -107,7 +107,7 @@ const leafletStyle = new CSSStyleSheet();
  * <gbfs-map
  *   x-url="https://api-public.odpt.org/api/v4/gbfs/hellocycling/gbfs.json,https://api-public.odpt.org/api/v4/gbfs/docomo-cycle-tokyo/gbfs.json"
  *   x-default-lat="35.68123355100922"
- *   x-default-lng="139.76712357086677"
+ *   x-default-lon="139.76712357086677"
  *   x-preferred-languages="ja"
  *   x-cors
  * ></gbfs-map>
@@ -115,7 +115,7 @@ const leafletStyle = new CSSStyleSheet();
  * You can specify the following attributes to control the display.
  * - `x-url`: endpoint for `gbfs.json`. You can specify multiple options by separating them with commas.
  * - `x-default-lat`: Initial coordinates of the map (latitude).
- * - `x-default-lng`: Initial coordinates of the map (longitude).
+ * - `x-default-lon`: Initial coordinates of the map (longitude).
  * - `x-preferred-languages`: Language you want to display. If the API does not return data for that language, it will fallback to the first value returned by the API. You can specify multiple options by separating them with commas. (example: `"ja,en"`)
  * - `x-cors`: Specifying this attribute enables the CORS proxy. By default cors.deno.dev is used. Override `GbfsMap.toCorsUrl` if you want to use a different CORS proxy.
  */
@@ -227,7 +227,7 @@ export class GbfsMap extends HTMLElement {
   #initElement({ preferredLanguages }) {
     const i18n = getI18n(preferredLanguages);
     const defaultLat = this.getAttribute("x-default-lat") || 0;
-    const defaultLng = this.getAttribute("x-default-lng") || 0;
+    const defaultLon = this.getAttribute("x-default-lon") || 0;
     const checkboxWrapper = document.createElement("section");
     const availableBikeCheckboxLabel = document.createElement("label");
     const availableDockCheckboxLabel = document.createElement("label");
@@ -256,7 +256,7 @@ export class GbfsMap extends HTMLElement {
     );
     this.#shadowRoot.append(checkboxWrapper, mapElement);
 
-    const map = L.map(mapElement).setView([+defaultLat, +defaultLng], 15);
+    const map = L.map(mapElement).setView([+defaultLat, +defaultLon], 15);
 
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution:
@@ -375,7 +375,7 @@ async function observeMapData(map, {
     const zoom = map.getZoom();
     if (13 < zoom) {
       // render marker
-      const { minLng, maxLng, minLat, maxLat } = getCurrentRect(map);
+      const { minLon, maxLon, minLat, maxLat } = getCurrentRect(map);
       for (const st of currentStatus) {
         const {
           station_id,
@@ -391,7 +391,7 @@ async function observeMapData(map, {
         const { lat, lon, marker } = stationInformation;
         // Draws an icon within the visible range
         if (
-          minLng < lon && lon < maxLng && minLat < lat && lat < maxLat &&
+          minLon < lon && lon < maxLon && minLat < lat && lat < maxLat &&
           (!onlyAvailableBike || 0 < num_bikes_available && is_renting) &&
           (!onlyAvailableDock || 0 < num_docks_available && is_returning)
         ) {
@@ -411,7 +411,7 @@ async function observeMapData(map, {
         onlyAvailableBike,
         onlyAvailableDock,
         latSize: 9 < zoom ? 30 / 60 / 60 : 6 < zoom ? 5 / 60 : 8 / zoom,
-        lngSize: 9 < zoom ? 45 / 60 / 60 : 6 < zoom ? 7.5 / 60 : 8 / zoom,
+        lonSize: 9 < zoom ? 45 / 60 / 60 : 6 < zoom ? 7.5 / 60 : 8 / zoom,
       });
       for (const tile of tiles) {
         currentTiles.push(L.rectangle(tile.rectangle, {
@@ -560,7 +560,7 @@ async function* getStationStatus(url) {
  *   status: StationStatus[]
  *   onlyAvailableBike:boolean;
  *   onlyAvailableDock: boolean;
- *   lngSize: number;
+ *   lonSize: number;
  *   latSize: number;
  * }} options
  */
@@ -569,12 +569,12 @@ function getCurrentTiles(map, {
   information,
   onlyAvailableBike,
   onlyAvailableDock,
-  lngSize,
+  lonSize,
   latSize,
 }) {
-  const { minLng, maxLng, minLat, maxLat } = getCurrentRect(map);
-  const lngStart = Math.floor(minLng / lngSize) * lngSize;
-  const lngEnd = Math.ceil(maxLng / lngSize) * lngSize;
+  const { minLon, maxLon, minLat, maxLat } = getCurrentRect(map);
+  const lonStart = Math.floor(minLon / lonSize) * lonSize;
+  const lonEnd = Math.ceil(maxLon / lonSize) * lonSize;
   const latStart = Math.floor(minLat / latSize) * latSize;
   const latEnd = Math.ceil(maxLat / latSize) * latSize;
   /** @type {Record<string, {count: number; rectangle: [[number, number], [number, number]];}>} */
@@ -593,18 +593,18 @@ function getCurrentTiles(map, {
     }
     const { lat, lon } = stationInformation;
     if (
-      lngStart < lon && lon < lngEnd && latStart < lat && lat < latEnd &&
+      lonStart < lon && lon < lonEnd && latStart < lat && lat < latEnd &&
       (!onlyAvailableBike || 0 < num_bikes_available && is_renting) &&
       (!onlyAvailableDock || 0 < num_docks_available && is_returning)
     ) {
-      const baseLng = Math.floor(lon / lngSize);
+      const baseLon = Math.floor(lon / lonSize);
       const baseLat = Math.floor(lat / latSize);
-      const key = `${baseLng}_${baseLat}`;
+      const key = `${baseLon}_${baseLat}`;
       res[key] ??= {
         count: 0,
         rectangle: [
-          [baseLat * latSize, baseLng * lngSize],
-          [(baseLat + 1) * latSize, (baseLng + 1) * lngSize],
+          [baseLat * latSize, baseLon * lonSize],
+          [(baseLat + 1) * latSize, (baseLon + 1) * lonSize],
         ],
       };
       res[key].count++;
@@ -624,8 +624,8 @@ function getCurrentRect(map) {
   const north = bounds.getNorth();
   const south = bounds.getSouth();
   return {
-    minLng: Math.min(east, west),
-    maxLng: Math.max(east, west),
+    minLon: Math.min(east, west),
+    maxLon: Math.max(east, west),
     minLat: Math.min(north, south),
     maxLat: Math.max(north, south),
   };
