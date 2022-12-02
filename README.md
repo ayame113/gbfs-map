@@ -4,6 +4,8 @@ https://deno.land/x/gbfs_map@0.0.1/
 
 A library for displaying GBFS port data on a map.
 
+![image](https://user-images.githubusercontent.com/40050810/205360212-db4960f5-4a79-4c19-abe6-f92ce02e0feb.png)
+
 You can embed the GBFS portmap into your website using code like the one below.
 
 ```
