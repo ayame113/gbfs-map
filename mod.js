@@ -1,7 +1,9 @@
 // @ts-check
+/// <reference no-default-lib="true"/>
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 /// <reference lib="dom.asynciterable" />
+/// <reference lib="esnext" />
 
 import * as L from "https://esm.sh/leaflet@1.9.2";
 
